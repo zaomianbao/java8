@@ -1,18 +1,18 @@
 package com.zaomianbao.java8.stream;
 
+import com.google.common.collect.Lists;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
-
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import static com.zaomianbao.java8.stream.Cons.*;
 
 /**
@@ -179,6 +179,53 @@ public class StreamDemo {
         Collector<String, ?, List<String>> collector = Collectors.toList();
         List<String> result = stage8.collect(collector);
         log.info("打印:{}",result);
+    }
+
+    @Test
+    public void testListPartition(){
+
+        List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7);
+        Integer maxSend = 3;
+        int limit = countStep(list.size(),maxSend);
+        //方法一：使用流遍历操作
+        List<List<Integer>> mglist = new ArrayList<>();
+        List<Integer> collect = Stream.iterate(0, n -> n + 1).limit(limit).collect(Collectors.toList());
+        System.out.println(collect);
+        Stream.iterate(0, n -> n + 1)
+                .limit(limit)
+                .forEach(i -> mglist.add(list.stream().skip(i * maxSend).limit(maxSend).collect(Collectors.toList())));
+
+        System.out.println(mglist);
+
+        //方法二：获取分割后的集合
+        List<List<Integer>> splitList =
+                Stream.iterate(0, n -> n + 1)
+                        .limit(limit).parallel()
+                        .map(a -> list.stream().skip(a * maxSend).limit(maxSend).parallel().collect(Collectors.toList()))
+                        .collect(Collectors.toList());
+
+        System.out.println(splitList);
+
+        //方法三：google guava工具类
+        List<List<Integer>> parts = Lists.partition(list, 3);
+        System.out.println(parts);
+
+    }
+
+    @Test
+    public void testStreamIndex(){
+        List<Person> persons = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            Person person = new Person(null, "name" + i+",name"+(i+5000));
+            persons.add(person);
+        }
+        AtomicInteger a = new AtomicInteger(1);
+        persons = persons.stream().map(item -> {
+            item.setNo(a.getAndIncrement());
+            return item;
+        }).collect(Collectors.toList());
+        System.out.println(persons);
+
     }
 
     @Test
@@ -397,6 +444,13 @@ public class StreamDemo {
     private static int getAverage(List<Integer> numbers){
         return getSum(numbers) / numbers.size();
     }
+
+    /**
+     * 计算切分次数
+     */
+    private static Integer countStep(Integer size,Integer maxSend) {
+        return (size + maxSend - 1) / maxSend;
+    }
 }
 
 @Data
@@ -442,7 +496,7 @@ class Person {
     public Integer no;
     private String name;
     public String getName() {
-        System.out.println(name);
+        //System.out.println(name);
         return name;
     }
 }
